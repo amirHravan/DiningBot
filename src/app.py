@@ -6,11 +6,14 @@ from src.inline_keyboards_handlers.choose_food_courts_handler import (
     FoodCourtSelectingHandler)
 from src.inline_keyboards_handlers.food_priorities_handler import (
     FoodPrioritiesHandler)
+from src.inline_keyboards_handlers.manual_reserve_keyboard_handler import (
+    ManualReserveKeyboardHandler)
 from src.db import DB
 from src.forget_code import ForgetCodeMenuHandler
 from src.reserve import ReserveMenuHandler
 from src.static_data import *
 from src.utils import update_environment_variable
+from src.manual_reserve_handler import ManualReserveInlineHandler
 from telegram import ReplyKeyboardMarkup, Update, error
 from telegram.ext import (
     CommandHandler,
@@ -49,6 +52,7 @@ class DiningBot:
         self.error_handler = ErrorHandler(admin_ids, sentry_dsn, environment)
         self.forget_code_handler = ForgetCodeMenuHandler(self.db)
         self.reserve_handler = ReserveMenuHandler(self.db, admin_sso_username, admin_sso_password)
+        self.manual_reserve_handler = ManualReserveInlineHandler(self.db)
 
         logging.basicConfig(
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -153,7 +157,9 @@ class DiningBot:
         elif type == "AUTOMATIC_RESERVE":
             _, action = AutomaticReserveAlreadyActivatedHandler.separate_callback_data(update.callback_query.data)
             await self.reserve_handler.inline_already_activated_handler(update, context, action)
-
+        elif type == "MANUAL_RESERVE":
+            _, action, food_id, day = ManualReserveKeyboardHandler.separate_callback_data(update.callback_query.data)
+            await self.manual_reserve_handler.inline_manual_food_choose_handler(update, context, action, day, food_id)
     async def send_main_menu(self, update, context):
         if context.user_data: context.user_data.clear()
         await update.message.reply_text(

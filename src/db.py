@@ -5,7 +5,7 @@ from pymongo.errors import DuplicateKeyError
 class DB:
 
     def __init__(self, host: str = "127.0.0.1", port: int = 27017) -> None:
-        self.db = MongoClient(host, int(port)).diningbotdb
+        self.db = MongoClient(host, int(port)).diningbotdevdb
 
     def add_user(self, user):
         self.db.users.insert_one(user)

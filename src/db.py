@@ -67,6 +67,18 @@ class DB:
             projection={'_id': 0, 'user_id': 1, 'priorities': 1, 'food_courts': 1, 'student_number': 1, 'password': 1}
         )
 
+    def set_food_court_reserve_table(self, food_court_id, food_table: dict):
+        return self.db.reserve_tables.update_one(
+            {"food_court_id": food_court_id},
+            {"$set": {'reserve_table': food_table}},
+            upsert=True,
+        )
+
+    def get_food_court_reserve_table(self, food_court_id):
+        return self.db.reserve_tables.find_one(
+            filter={'food_court_id': food_court_id},
+        )
+
     def set_user_next_week_reserve_status(self, user_id: int, status: bool):
         self.db.users.update_one(
             {"user_id": int(user_id)},

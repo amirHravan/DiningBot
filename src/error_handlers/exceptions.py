@@ -18,3 +18,8 @@ class AlreadyReserved(BaseException):
     def __init__(self, *args: object, message=None) -> None:
         message = message if message else "AlreadyReserved"
         super().__init__(message, *args)
+
+class EmptyReserveTableException(BaseException):
+    def __init__(self, *args: object, message=None) -> None:
+        message = message if message else "EmptyReserveTableException"
+        super().__init__(message, *args)

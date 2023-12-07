@@ -53,18 +53,19 @@ FOOD_COURT_IDS = {
 }
 
 MEAL_FA_TO_EN = {
+    "صبحانه": "breakfast",
     "ناهار": "lunch",
     "شام": "dinner",
     "سحری": "sahari",
     "افطاری": "eftari",
-    "صبحانه": "breakfast"
 }
 
 MEAL_EN_TO_FA = {
+    "breakfast": "صبحانه",
     "lunch": "ناهار",
     "dinner": "شام",
     "sahari": "سحری",
-    "eftari": "افطار"
+    "eftari": "افطار",
 }
 
 # Stages

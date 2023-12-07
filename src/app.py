@@ -158,8 +158,8 @@ class DiningBot:
             _, action = AutomaticReserveAlreadyActivatedHandler.separate_callback_data(update.callback_query.data)
             await self.reserve_handler.inline_already_activated_handler(update, context, action)
         elif type == "MANUAL_RESERVE":
-            _, action, food_id, day = ManualReserveKeyboardHandler.separate_callback_data(update.callback_query.data)
-            await self.manual_reserve_handler.inline_manual_food_choose_handler(update, context, action, day, food_id)
+            _, action, day, food_id, food_court_id, page = ManualReserveKeyboardHandler.separate_callback_data(update.callback_query.data)
+            await self.manual_reserve_handler.inline_manual_food_choose_handler(update, context, action, day, food_id, food_court_id, int(page))
     async def send_main_menu(self, update, context):
         if context.user_data: context.user_data.clear()
         await update.message.reply_text(

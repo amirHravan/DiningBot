@@ -149,7 +149,7 @@ class Dining:
             return []
         return self.__parse_food_table_to_get_foods_list(table)
 
-    def get_reserve_table_foods(self, place_id: int) -> dict:
+    def get_reserve_table_foods(self, place_id: int, test: bool = False) -> dict:
         """ output:
         {
             <date>: {
@@ -165,6 +165,8 @@ class Dining:
             }'
         }    
         """
+        if test:
+
         table = self.__load_food_table(place_id=place_id)
         # Save page.text to file
         # with open("out.html", "w") as file:

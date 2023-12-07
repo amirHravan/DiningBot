@@ -11,6 +11,7 @@ import datetime
 import requests
 import logging
 import re
+import json
 
 
 class Dining:
@@ -166,6 +167,9 @@ class Dining:
         }    
         """
         if test:
+            with open("sample_table.json","r") as file:
+                return json.load(file)
+
 
         table = self.__load_food_table(place_id=place_id)
         # Save page.text to file

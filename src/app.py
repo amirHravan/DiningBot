@@ -30,25 +30,25 @@ import src.messages as messages
 import logging
 
 
-
 class DiningBot:
     def __init__(
-        self,
-        token, admin_ids=set(),
-        sentry_dsn: str = None,
-        environment: str = "development",
-        log_level='INFO', db: DB = None,
-        admin_sso_username: str = None, admin_sso_password: str = None):
+            self,
+            token, admin_ids=set(),
+            sentry_dsn: str = None,
+            environment: str = "development",
+            log_level='INFO', db: DB = None,
+            cache=None,
+            admin_sso_username: str = None, admin_sso_password: str = None):
 
         self.admin_ids = admin_ids
         # self.updater = Updater(token=token, use_context=True)
-        #self.dispatcher = self.updater.dispatcher
+        # self.dispatcher = self.updater.dispatcher
 
         self.application = ApplicationBuilder().token(token).build()
         self.dispatcher = self.application
 
         self.db = db
-
+        self.cache = cache
         self.error_handler = ErrorHandler(admin_ids, sentry_dsn, environment)
         self.forget_code_handler = ForgetCodeMenuHandler(self.db)
         self.reserve_handler = ReserveMenuHandler(self.db, admin_sso_username, admin_sso_password)
@@ -72,6 +72,7 @@ class DiningBot:
                 await update.message.reply_text(text=msg)
                 return
             return await func(self, *args, **kwargs)
+
         return wrapper
 
     def is_admin(self, update):
@@ -99,7 +100,7 @@ class DiningBot:
 
     @check_admin
     async def set(self, update, context):
-        if not update.message.text: return # on edit
+        if not update.message.text: return  # on edit
         args = update.message.text.split()[1:]
         if len(args) != 2:
             await context.bot.send_message(
@@ -158,8 +159,11 @@ class DiningBot:
             _, action = AutomaticReserveAlreadyActivatedHandler.separate_callback_data(update.callback_query.data)
             await self.reserve_handler.inline_already_activated_handler(update, context, action)
         elif type == "MANUAL_RESERVE":
-            _, action, day, food_id, food_court_id, page = ManualReserveKeyboardHandler.separate_callback_data(update.callback_query.data)
-            await self.manual_reserve_handler.inline_manual_food_choose_handler(update, context, action, day, food_id, food_court_id, int(page))
+            _, action, day, food_id, food_court_id, page = ManualReserveKeyboardHandler.separate_callback_data(
+                update.callback_query.data)
+            await self.manual_reserve_handler.inline_manual_food_choose_handler(update, context, action, day, food_id,
+                                                                                food_court_id, int(page))
+
     async def send_main_menu(self, update, context):
         if context.user_data: context.user_data.clear()
         await update.message.reply_text(
@@ -209,7 +213,7 @@ class DiningBot:
             week = splited_text[-1]
         await self.reserve_handler.update_food_list(update, context, int(week))
 
-    def setup_handlers(self):        
+    def setup_handlers(self):
         help_handler = CommandHandler('help', self.help, block=False)
         self.dispatcher.add_handler(help_handler)
 
@@ -229,7 +233,8 @@ class DiningBot:
         self.dispatcher.add_handler(inline_handler)
 
         menue_handler = ConversationHandler(
-            entry_points=[CommandHandler('start', self.start), MessageHandler(filters.TEXT & (~filters.COMMAND), self.unknown_command)],
+            entry_points=[CommandHandler('start', self.start),
+                          MessageHandler(filters.TEXT & (~filters.COMMAND), self.unknown_command)],
             states={
                 MAIN_MENU_CHOOSING: [
                     MessageHandler(
@@ -351,11 +356,10 @@ class DiningBot:
 
         self.dispatcher.add_error_handler(self.error_handler.handle_error)
 
-
     def run(self):
         self.reserve_handler.load_foods()
         self.setup_handlers()
-        #self.updater.start_polling()
+        # self.updater.start_polling()
         self.application.run_polling(allowed_updates=Update.ALL_TYPES)
 
         # self.updater.idle()

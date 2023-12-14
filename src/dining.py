@@ -33,10 +33,10 @@ class Dining:
     FOOD_NAME_AND_PRICE_REGEX = "(?P<name>.*)\W\((?P<price>\d+,\d+) تومان\)"
     DATE_REGEX = "\W+(?P<day>\w+\W?\w+)\W+(?P<date>\d+/\d+/\d+).*"
 
-    def __init__(self, student_id: str, password: str) -> None:
+    def __init__(self, student_id: str, password: str, cache=None) -> None:
         self.student_id = student_id
         self.password = password
-
+        self.cache = cache
         self.meals = []
         self.meals_id_to_name = {
             "5": "dinner",
@@ -63,7 +63,9 @@ class Dining:
         now = datetime.datetime.now()
         start_of_week = now - datetime.timedelta(days=(now.weekday() + 2) % 7)
         epoch_start_of_the_week = str(int(start_of_week.timestamp()) * 1000)
-        epoch_start_of_the_next_week = str(int((now + datetime.timedelta(days=(7 - (now.weekday() + 2)))).replace(hour=0, minute=0, second=0).timestamp()) * 1000)
+        epoch_start_of_the_next_week = str(
+            int((now + datetime.timedelta(days=(7 - (now.weekday() + 2)))).replace(hour=0, minute=0,
+                                                                                   second=0).timestamp()) * 1000)
 
         data = [
             ('weekStartDateTime', f'{epoch_start_of_the_next_week}'),
@@ -90,7 +92,7 @@ class Dining:
                 for food_index, food in enumerate(foods_list):
                     food_data = []
                     if food_index == choosed_food_indices[day][meal]:
-                    # if food.get("food") in ['شوید پلو با مرغ', 'چلو خورشت مسما بادمجان', 'رشته پلو با گوشت', 'چلو‌خورش بامیه', 'چلو با شامی کباب']:
+                        # if food.get("food") in ['شوید پلو با مرغ', 'چلو خورشت مسما بادمجان', 'رشته پلو با گوشت', 'چلو‌خورش بامیه', 'چلو با شامی کباب']:
                         food_data += [
                             (f"userWeekReserves[{i}].selected", 'true'),
                             (f"userWeekReserves[{i}].selectedCount", '1')
@@ -105,7 +107,7 @@ class Dining:
                         (f"userWeekReserves[{i}].id", ''),
                         (f"userWeekReserves[{i}].programId", food.get("program_id")),
                         (f"userWeekReserves[{i}].mealTypeId", food.get("meal_type_id")),
-                        (f"userWeekReserves[{i}].programDateTime", program_date_epoch), # Food day
+                        (f"userWeekReserves[{i}].programDateTime", program_date_epoch),  # Food day
                         (f"userWeekReserves[{i}].selfId", str(place_id)),
                         (f"userWeekReserves[{i}].foodTypeId", food.get("food_type_id")),
                         (f"userWeekReserves[{i}].foodId", food.get("food_id")),
@@ -115,8 +117,8 @@ class Dining:
                     ]
                     data_batch.append(food_data)
                     i += 1
-        
-        data.insert(1,('remainCredit', str(self.remainCredit - total_food_prices)))
+
+        data.insert(1, ('remainCredit', str(self.remainCredit - total_food_prices)))
         # data_batch.reverse()
         for d in data_batch:
             data += d
@@ -126,13 +128,13 @@ class Dining:
         # with open("out.html", "w") as file:
         #     file.write(bs(response.content, "html.parser").prettify())
         # with open("food_data.txt", "w") as file:
-            # file.writelines([f'{item}\n' for item in data])
+        # file.writelines([f'{item}\n' for item in data])
         if "تعداد مجاز رزرو روزانه شما بیش از حد مجاز است" in text:
-            raise(AlreadyReserved)
+            raise (AlreadyReserved)
         if "برنامه غذایی معادل پیدا نشد" in text or "لطفا مقدار مناسب وارد کنید" in text:
-            raise(NoSuchFoodSchedule)
+            raise (NoSuchFoodSchedule)
         if "اعتبار شما کم است" in text:
-            raise(NotEnoughCreditToReserve)
+            raise (NotEnoughCreditToReserve)
         self.remainCredit -= total_food_prices
         return self.remainCredit
 
@@ -167,9 +169,8 @@ class Dining:
         }    
         """
         if test:
-            with open("sample_table.json","r") as file:
+            with open("sample_table.json", "r") as file:
                 return json.load(file)
-
 
         table = self.__load_food_table(place_id=place_id)
         # Save page.text to file
@@ -195,7 +196,7 @@ class Dining:
             'login': 'ورود',
         }
 
-        response = self.session.post('https://setad.dining.sharif.edu/j_security_check',  data=data)
+        response = self.session.post('https://setad.dining.sharif.edu/j_security_check', data=data)
         # with open("out.html", "w") as file:
         #     file.write(bs(response.content, "html.parser").prettify())
 
@@ -203,8 +204,8 @@ class Dining:
         self.csrf = re.match(r".*X-CSRF-TOKEN' : '(?P<csrf>.*)'}.*", script).group("csrf")
 
         if response.status_code != HTTPStatus.OK \
-            or str(response.text).find('ورود به سامانه سماد') != -1 \
-            or str(response.text).find('نام کاربری یا رمز عبور اشتباه است') != -1:
+                or str(response.text).find('ورود به سامانه سماد') != -1 \
+                or str(response.text).find('نام کاربری یا رمز عبور اشتباه است') != -1:
             logging.debug("Login failed")
             return False
         return True
@@ -251,11 +252,11 @@ class Dining:
             'login': 'ورود',
         }
 
-        response = session.post('https://setad.dining.sharif.edu/j_security_check',  data=data)
+        response = session.post('https://setad.dining.sharif.edu/j_security_check', data=data)
 
         if response.status_code != HTTPStatus.OK \
-            or str(response.text).find('ورود به سامانه سماد') != -1 \
-            or str(response.text).find('نام کاربری یا رمز عبور اشتباه است') != -1:
+                or str(response.text).find('ورود به سامانه سماد') != -1 \
+                or str(response.text).find('نام کاربری یا رمز عبور اشتباه است') != -1:
             logging.debug("Username or password was wrong")
             return False
         return True
@@ -284,14 +285,15 @@ class Dining:
         #    file.write(bs(response.content, "html.parser").prettify())
 
     def __parse_reserve_table(self, reserve_table: requests.Response) -> dict:
-        content = bs(reserve_table.content, "html.parser").find("td", {"id": "pageTD"}).findNext("table").findNext("table") # TODO: Uncommnet
+        content = bs(reserve_table.content, "html.parser").find("td", {"id": "pageTD"}).findNext("table").findNext(
+            "table")  # TODO: Uncommnet
         # with open("out.html", "w") as file:
         #     file.writelines(str(bs(reserve_table.content, "html.parser")))
         # content = None
         # with open("out.html", "r") as file:
         #     # content = bs(str(file.read()), "html.parser").find("td", {"id": "pageTD"}).findNext("table").findNext("table")
         #     content = bs(str(file.read()), "html.parser").find("td", {"id": "pageTD"}).findNext("table").findNext("table")
-            
+
         self.meals = [static_data.MEAL_FA_TO_EN[time.text.split(("\n"))[1].strip()] for time in
                       content.findNext("tr").find_all("td")]
         content = content.find_all("tr", recursive=False)
@@ -321,11 +323,12 @@ class Dining:
                         # if meal_food_counter == 0: inputs.reverse()
                         for input in inputs:
                             if input.attrs.get('type') == "checkbox":
-                                food_id =  input.attrs['foodid']
+                                food_id = input.attrs['foodid']
                                 food_program_date = input.attrs['programdate']
                                 food_type_id = input.attrs['foodtypeid']
                                 meal_type_id = input.attrs['mealtypeid']
-                                res[time][self.meals_id_to_name[meal_type_id]] = res[time].get(self.meals_id_to_name[meal_type_id], [])
+                                res[time][self.meals_id_to_name[meal_type_id]] = res[time].get(
+                                    self.meals_id_to_name[meal_type_id], [])
                                 if input_counter == meal_food_counter:
                                     break
                                 input_counter += 1
@@ -368,7 +371,8 @@ class Dining:
         food_courts = {}
         for option in content.find_all("option", recursive=True):
             if option.attrs.get("value"):
-                food_courts[" - ".join([ part.strip() for part in option.text.split("-")[:-1] ])] = option.attrs.get("value")
+                food_courts[" - ".join([part.strip() for part in option.text.split("-")[:-1]])] = option.attrs.get(
+                    "value")
         return food_courts
 
     def get_user_food_courts(self):

@@ -3,14 +3,16 @@ import logging
 from src import messages, static_data
 from telegram.ext import ApplicationBuilder
 from telegram.error import BadRequest
-from src.inline_keyboards_handlers.manual_reserve_keyboard_handler import  ManualReserveKeyboardHandler
+from src.inline_keyboards_handlers.manual_reserve_keyboard_handler import ManualReserveKeyboardHandler
 from src.error_handlers.exceptions import EmptyReserveTableException
 
 USER_DATA_SELECTED_FOODS_KEY = "manual_reserve_selected_foods"
 
+
 class ManualReserveHandler:
-    def __init__(self, token="TOKEN", admin_ids=set(), log_level='INFO', db=None) -> None:
+    def __init__(self, token="TOKEN", admin_ids=set(), log_level='INFO', db=None, cache=None) -> None:
         self.db = db
+        self.cache = cache
         self.token = token
         self.admin_ids = admin_ids
         self.food_table = {}
@@ -25,7 +27,7 @@ class ManualReserveHandler:
 
     async def handle_manual_reserve(self):
         for admin in self.admin_ids:
-            await self.__start_manual_reserve(user_id = admin)
+            await self.__start_manual_reserve(user_id=admin)
 
     async def __start_manual_reserve(self, context=None, user_id=None):
         if not context:
@@ -78,7 +80,7 @@ class ManualReserveInlineHandler:
     def __init__(self, db):
         self.db = db
 
-    async def __update_reply_markup(self,context, query, food_court_id, page, food_table=None):
+    async def __update_reply_markup(self, context, query, food_court_id, page, food_table=None):
         if not food_table:
             food_table = self.db.get_food_court_reserve_table(food_court_id)['reserve_table']
         try:
@@ -102,9 +104,9 @@ class ManualReserveInlineHandler:
         if action == "IGNORE":
             await context.bot.answer_callback_query(callback_query_id=query.id)
         if action == "PREV":
-            await self.__update_reply_markup(context, query, food_court_id, page-1)
+            await self.__update_reply_markup(context, query, food_court_id, page - 1)
         if action == 'NEXT':
-            await self.__update_reply_markup(context, query, food_court_id, page+1)
+            await self.__update_reply_markup(context, query, food_court_id, page + 1)
         elif action == "DONE":
             logging.debug(context.user_data[USER_DATA_SELECTED_FOODS_KEY])
             await context.bot.edit_message_text(
@@ -127,13 +129,12 @@ class ManualReserveInlineHandler:
                     context.user_data[USER_DATA_SELECTED_FOODS_KEY] = {}
                 food_table = self.db.get_food_court_reserve_table(food_court_id)['reserve_table']
                 logging.debug(food_table)
-                meal,_ = list(food_table.items())[page]
+                meal, _ = list(food_table.items())[page]
                 for food in food_table[meal][day]:
                     if food['food_id'] == food_id:
                         if not context.user_data[USER_DATA_SELECTED_FOODS_KEY].get(meal):
                             context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal] = {}
-                        context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal][day]= food_id
+                        context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal][day] = food_id
                 await self.__update_reply_markup(context, query, food_court_id, page, food_table)
             else:
                 await context.bot.answer_callback_query(callback_query_id=query.id)
-

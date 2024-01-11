@@ -232,3 +232,14 @@ class DB:
             {'$match': {'assigned': False}},
             {'$group': {'_id': '$food_court_id', 'count': {'$sum': 1}}}
         ])
+
+    def add_garbage_message(self, message_id, chat_id):
+        self.db.temp_msgs.insert_one(
+            {
+                'message_id': message_id,
+                'chat_id': chat_id,
+            },
+        )
+
+    def get_temporary_messages(self) -> list[dict]:
+        return self.db.temp_msgs.find()

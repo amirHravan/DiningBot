@@ -1,10 +1,13 @@
+import threading
+
 from src.dining import Dining
 import logging
 from src import messages, static_data
 from telegram.ext import ApplicationBuilder
 from telegram.error import BadRequest
 from src.inline_keyboards_handlers.manual_reserve_keyboard_handler import ManualReserveKeyboardHandler
-from src.error_handlers.exceptions import EmptyReserveTableException
+from src.error_handlers.exceptions import EmptyReserveTableException, AlreadyReserved, NotEnoughCreditToReserve, \
+    NoSuchFoodSchedule
 
 USER_DATA_SELECTED_FOODS_KEY = "manual_reserve_selected_foods"
 
@@ -35,25 +38,20 @@ class ManualReserveHandler:
             user_context = ApplicationBuilder().token(self.token).build()
         else:
             user_context = context
+        # Todo implement if user_id == None
         users = [self.db.get_user_reserve_info(user_id)] if user_id else []
-        logging.debug("users are {}".format(users))
         # user_context.user_data.clear()
-        logging.info("ManualReserve :: start")
+        logging.info("ManualReserve :: start sending tables")
         for user in users:
             await self.__send_reserve_table(user, user_context)
 
     async def __send_reserve_table(self, user, context):
-        try:
-            dining = Dining(user["student_number"], user["password"])
-        except Exception as e:
-            return
-
+        dining = Dining(user["student_number"], user["password"])
         logging.info("ManualReserve :: sending reserve table for {}".format(user["user_id"]))
         for food_court_id in user['food_courts']:
             food_table = self.__process_reserve_table(dining.get_reserve_table_foods(food_court_id, True))
-            logging.debug(food_table)
             self.db.set_food_court_reserve_table(food_court_id, food_table)
-            await context.bot.send_message(
+            message = await context.bot.send_message(
                 chat_id=user['user_id'],
                 text=messages.manual_reserve_food_table_message,
                 reply_markup=ManualReserveKeyboardHandler.create_food_list_keyboard(
@@ -63,11 +61,12 @@ class ManualReserveHandler:
                     page=0,
                 )
             )
+            self.db.add_garbage_message(message.message_id, message.chat.id)
 
     def __process_reserve_table(self, reserve_table: dict):
         result = {}
         reversed_reserve_table = dict(reversed(list(reserve_table.items())))
-        for meal in static_data.MEAL_EN_TO_FA.keys():
+        for meal in self.dinin:
             for key, value in reversed_reserve_table.items():
                 if value.get(meal) and len(value.get(meal)):
                     if not result.get(meal):
@@ -108,33 +107,74 @@ class ManualReserveInlineHandler:
         if action == 'NEXT':
             await self.__update_reply_markup(context, query, food_court_id, page + 1)
         elif action == "DONE":
-            logging.debug(context.user_data[USER_DATA_SELECTED_FOODS_KEY])
             await context.bot.edit_message_text(
                 text=messages.manual_reserve_select_food_done,
                 chat_id=query.message.chat_id,
                 message_id=query.message.message_id
             )
-            return static_data.RESERVE_MENU_CHOOSING
+            target_user_id = query.from_user.id
+            try:
+                await self.__reserve_food(food_court_id, self.db.get_user_login_info(target_user_id), context.user_data.get(USER_DATA_SELECTED_FOODS_KEY, {}))
+            except AlreadyReserved as e:
+                logging.debug(e.message)
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=messages.already_reserved_message.format(
+                        static_data.PLACES_NAME_BY_ID[food_court_id]
+                    )
+                )
+                # If user has already reserved his food, we should set his next_week_reserve status to True
+                threading.Thread(target=self.db.set_user_next_week_reserve_status, args=(target_user_id, True)).start()
+            except NotEnoughCreditToReserve as e:
+                logging.debug(e.message)
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=messages.not_enough_credit_to_reserve_message.format(
+                        static_data.PLACES_NAME_BY_ID[food_court_id]
+                    )
+                )
+            except NoSuchFoodSchedule as e:
+                logging.error("Error on reserving food for user {} with message {}".format(target_user_id, e.message))
+                await context.bot.send_message(
+                    chat_id=target_user_id,
+                    text=messages.reserve_was_failed_message.format(static_data.PLACES_NAME_BY_ID[food_court_id]))
         elif action == "CANCEL":
             if context.user_data: context.user_data.clear()
-            await context.bot.edit_message_text(
-                text=messages.manual_reserve_select_food_canceled,
+            await context.bot.delete_message(
                 chat_id=query.message.chat_id,
                 message_id=query.message.message_id
             )
-            return static_data.RESERVE_MENU_CHOOSING
         elif action == "SELECT":
             if food_id != "-":
                 if not context.user_data.get(USER_DATA_SELECTED_FOODS_KEY):
                     context.user_data[USER_DATA_SELECTED_FOODS_KEY] = {}
                 food_table = self.db.get_food_court_reserve_table(food_court_id)['reserve_table']
-                logging.debug(food_table)
                 meal, _ = list(food_table.items())[page]
                 for food in food_table[meal][day]:
                     if food['food_id'] == food_id:
                         if not context.user_data[USER_DATA_SELECTED_FOODS_KEY].get(meal):
                             context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal] = {}
-                        context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal][day] = food_id
+                        if context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal].get(day) == food_id:
+                            context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal][day] = None
+                        else:
+                            context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal][day] = food_id
                 await self.__update_reply_markup(context, query, food_court_id, page, food_table)
             else:
                 await context.bot.answer_callback_query(callback_query_id=query.id)
+
+    async def __reserve_food(self, food_court_id: int, login_info: dict, selected_food_map: dict):
+        dining = Dining(login_info['student_number'], login_info['password'])
+        foods = dining.get_reserve_table_foods(food_court_id)
+        selected_food_indices = {}
+        food_names = []
+        for day in foods:
+            for meal in dining.meals:
+                if not foods[day][meal]: continue
+                day_food_ids = list(map(lambda food: food['food_id'], foods[day][meal]))
+                if not day_food_ids: continue
+                if selected_food_map.get(meal).get(day) is not None:
+                    selected_food_indices[day] = selected_food_indices.get(day, {})
+                    selected_food_indices[day][meal] = day_food_ids.index(selected_food_map[meal][day])
+                    food_names.append(
+                        (foods[day][meal][day_food_ids.index(selected_food_map[meal][day])].get('food'), day, meal))
+        return dining.reserve_food(int(food_court_id), foods, selected_food_indices)

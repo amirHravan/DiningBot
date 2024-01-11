@@ -2,7 +2,7 @@ from src.utils import seprate_admins
 from decouple import config
 from src.app import DiningBot
 from src.db import DB
-from src.cache import Cache
+# from src.cache import Cache
 
 DiningBot(
     token=config('TOKEN'),
@@ -12,10 +12,10 @@ DiningBot(
         host=config('DB_HOST', default='127.0.0.1'),
         port=config('DB_PORT', default='27017')
     ),
-    cache=Cache(
-        config('CACHE_HOST', default='127.0.0.1'),
-        config('CACHE_PORT', default='6379'),
-    ),
+    # cache=Cache(
+    #     config('CACHE_HOST', default='127.0.0.1'),
+    #     config('CACHE_PORT', default='6379'),
+    # ),
     admin_sso_username=config('ADMIN_SHARIF_SSO_USERNAME'),
     admin_sso_password=config('ADMIN_SHARIF_SSO_PASSWORD'),
     sentry_dsn=config('SENTRY_DSN', default=None),

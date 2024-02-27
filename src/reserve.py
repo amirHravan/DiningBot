@@ -18,7 +18,6 @@ class ReserveMenuHandler:
         self.db = db_client
         self.admin_username = admin_sso_username
         self.admin_password = admin_sso_password
-
         self.foods = set()
         self.foods_with_id = []
         self.food_name_by_id = {}

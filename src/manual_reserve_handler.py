@@ -28,11 +28,11 @@ class ManualReserveHandler:
                 'ERROR': logging.ERROR,
             }[log_level])
 
-    async def handle_manual_reserve(self):
-        for admin in self.admin_ids:
-            await self.__start_manual_reserve(user_id=admin)
+    async def handle_manual_reserve(self, update, context):
+        await self.start_manual_reserve(context, update.effective_chat.id)
+        return static_data.RESERVE_MENU_CHOOSING
 
-    async def __start_manual_reserve(self, context=None, user_id=None):
+    async def start_manual_reserve(self, context=None, user_id=None):
         if not context:
             if not self.token: return
             user_context = ApplicationBuilder().token(self.token).build()
@@ -49,7 +49,7 @@ class ManualReserveHandler:
         dining = Dining(user["student_number"], user["password"])
         logging.info("ManualReserve :: sending reserve table for {}".format(user["user_id"]))
         for food_court_id in user['food_courts']:
-            food_table = self.__process_reserve_table(dining.get_reserve_table_foods(food_court_id, True))
+            food_table = dining.get_reserve_table_foods(food_court_id)
             self.db.set_food_court_reserve_table(food_court_id, food_table)
             message = await context.bot.send_message(
                 chat_id=user['user_id'],
@@ -62,22 +62,6 @@ class ManualReserveHandler:
                 )
             )
             self.db.add_garbage_message(message.message_id, message.chat.id)
-
-    def __process_reserve_table(self, reserve_table: dict):
-        result = {}
-        reversed_reserve_table = dict(reversed(list(reserve_table.items())))
-        for meal in self.dinin:
-            for key, value in reversed_reserve_table.items():
-                if value.get(meal) and len(value.get(meal)):
-                    if not result.get(meal):
-                        result[meal] = {}
-                    result[meal][key] = value[meal]
-        return result
-
-
-class ManualReserveInlineHandler:
-    def __init__(self, db):
-        self.db = db
 
     async def __update_reply_markup(self, context, query, food_court_id, page, food_table=None):
         if not food_table:
@@ -107,14 +91,18 @@ class ManualReserveInlineHandler:
         if action == 'NEXT':
             await self.__update_reply_markup(context, query, food_court_id, page + 1)
         elif action == "DONE":
-            await context.bot.edit_message_text(
-                text=messages.manual_reserve_select_food_done,
-                chat_id=query.message.chat_id,
-                message_id=query.message.message_id
-            )
+            # await context.bot.edit_message_text(
+            #     text=messages.manual_reserve_select_food_done,
+            #     chat_id=query.message.chat_id,
+            #     message_id=query.message.message_id
+            # )
             target_user_id = query.from_user.id
             try:
-                await self.__reserve_food(food_court_id, self.db.get_user_login_info(target_user_id), context.user_data.get(USER_DATA_SELECTED_FOODS_KEY, {}))
+                await self.__reserve_food(
+                    food_court_id,
+                    self.db.get_user_login_info(target_user_id),
+                    context.user_data.get(USER_DATA_SELECTED_FOODS_KEY, {})
+                )
             except AlreadyReserved as e:
                 logging.debug(e.message)
                 await context.bot.send_message(
@@ -146,14 +134,12 @@ class ManualReserveInlineHandler:
             )
         elif action == "SELECT":
             if food_id != "-":
-                if not context.user_data.get(USER_DATA_SELECTED_FOODS_KEY):
-                    context.user_data[USER_DATA_SELECTED_FOODS_KEY] = {}
+                context.user_data[USER_DATA_SELECTED_FOODS_KEY] = context.user_data.get(USER_DATA_SELECTED_FOODS_KEY, {})
                 food_table = self.db.get_food_court_reserve_table(food_court_id)['reserve_table']
-                meal, _ = list(food_table.items())[page]
-                for food in food_table[meal][day]:
+                meal = 'lunch'
+                for food in food_table[day][meal]:
                     if food['food_id'] == food_id:
-                        if not context.user_data[USER_DATA_SELECTED_FOODS_KEY].get(meal):
-                            context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal] = {}
+                        context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal] = context.user_data[USER_DATA_SELECTED_FOODS_KEY].get(meal, {})
                         if context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal].get(day) == food_id:
                             context.user_data[USER_DATA_SELECTED_FOODS_KEY][meal][day] = None
                         else:
@@ -164,16 +150,17 @@ class ManualReserveInlineHandler:
 
     async def __reserve_food(self, food_court_id: int, login_info: dict, selected_food_map: dict):
         dining = Dining(login_info['student_number'], login_info['password'])
+        logging.debug("reserve food debug: {}, {}, {}".format(food_court_id, login_info, selected_food_map))
         foods = dining.get_reserve_table_foods(food_court_id)
         selected_food_indices = {}
         food_names = []
         for day in foods:
+            selected_food_indices[day] = selected_food_indices.get(day, {})
             for meal in dining.meals:
-                if not foods[day][meal]: continue
+                selected_food_indices[day][meal] = selected_food_indices[day].get(meal, {})
                 day_food_ids = list(map(lambda food: food['food_id'], foods[day][meal]))
                 if not day_food_ids: continue
                 if selected_food_map.get(meal).get(day) is not None:
-                    selected_food_indices[day] = selected_food_indices.get(day, {})
                     selected_food_indices[day][meal] = day_food_ids.index(selected_food_map[meal][day])
                     food_names.append(
                         (foods[day][meal][day_food_ids.index(selected_food_map[meal][day])].get('food'), day, meal))

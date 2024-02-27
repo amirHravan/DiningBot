@@ -240,6 +240,3 @@ class DB:
                 'chat_id': chat_id,
             },
         )
-
-    def get_temporary_messages(self) -> list[dict]:
-        return self.db.temp_msgs.find()

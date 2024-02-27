@@ -1,6 +1,9 @@
 import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from src.error_handlers import EmptyReserveTableException
+from src.static_data import (
+    MEAL_EN_TO_FA
+)
 from src.messages import (
     next_page_button_message,
     previous_page_button_message,
@@ -10,22 +13,25 @@ from src.messages import (
 
 class ManualReserveKeyboardHandler:
     @staticmethod
-    def create_food_list_keyboard(food_table: dict, food_court_id, selected_foods=None,page: int=0) -> InlineKeyboardMarkup:
+    def create_food_list_keyboard(food_table: dict, food_court_id, selected_foods=None, page:int=0) -> InlineKeyboardMarkup:
         if selected_foods is None:
             selected_foods = {}
-        keyboard = []
-        if not len(food_table.items()):
-            return InlineKeyboardMarkup(keyboard)
 
-        meal, reserve_dict = list(food_table.items())[page]
-        for day, foods in reserve_dict.items():
+        keyboard = []
+        meal = 'lunch'
+        logging.debug(food_table)
+        food_list = [(day, food_values[meal]) for day, food_values in food_table.items()]
+        food_list.reverse()
+        if len(food_list) == 0:
+            return InlineKeyboardMarkup(keyboard)
+        for day, foods in food_list:
             row = []
             for food in foods:
                 food_name = food['food']
                 food_id = food['food_id']
                 if selected_foods.get(meal):
                     if selected_foods.get(meal).get(day) == food_id:
-                        food_name = '✅ '+food_name
+                        food_name = '✅ ' + food_name
                 row.append(
                     InlineKeyboardButton(
                         food_name,
@@ -40,28 +46,22 @@ class ManualReserveKeyboardHandler:
                 )
             keyboard.append(row)
         row = []
-        if page > 0:
-            row.append(
-                InlineKeyboardButton(
-                    previous_page_button_message, callback_data=ManualReserveKeyboardHandler.create_callback_data("PREV")),
-            )
-        else:
-            row.append(InlineKeyboardButton(
-                ' ', callback_data=ManualReserveKeyboardHandler.create_callback_data("IGNORE")))
+        row.append(InlineKeyboardButton(
+            ' ', callback_data=ManualReserveKeyboardHandler.create_callback_data("IGNORE")))
         row.append(
             InlineKeyboardButton(
-                done_button_message, callback_data=ManualReserveKeyboardHandler.create_callback_data("DONE")))
+                done_button_message, callback_data=ManualReserveKeyboardHandler.create_callback_data(
+                    action="DONE",
+                    food_court_id=food_court_id,
+                    page=page)
+            )
+        )
         row.append(
             InlineKeyboardButton(
                 cancel_button_message, callback_data=ManualReserveKeyboardHandler.create_callback_data("CANCEL")))
-        if page+1< len(food_table):
-            row.append(
-                InlineKeyboardButton(
-                next_page_button_message, callback_data=ManualReserveKeyboardHandler.create_callback_data("NEXT")))
-        else:
-            row.append(
-                InlineKeyboardButton(
-                    ' ', callback_data=ManualReserveKeyboardHandler.create_callback_data("IGNORE")))
+        row.append(
+            InlineKeyboardButton(
+                ' ', callback_data=ManualReserveKeyboardHandler.create_callback_data("IGNORE")))
         keyboard.append(row)
 
         return InlineKeyboardMarkup(keyboard)

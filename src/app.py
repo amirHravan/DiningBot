@@ -13,7 +13,7 @@ from src.forget_code import ForgetCodeMenuHandler
 from src.reserve import ReserveMenuHandler
 from src.static_data import *
 from src.utils import update_environment_variable
-from src.manual_reserve_handler import ManualReserveInlineHandler
+from src.manual_reserve_handler import ManualReserveHandler
 from telegram import ReplyKeyboardMarkup, Update, error
 from telegram.ext import (
     CommandHandler,
@@ -41,9 +41,6 @@ class DiningBot:
             admin_sso_username: str = None, admin_sso_password: str = None):
 
         self.admin_ids = admin_ids
-        # self.updater = Updater(token=token, use_context=True)
-        # self.dispatcher = self.updater.dispatcher
-
         self.application = ApplicationBuilder().token(token).build()
         self.dispatcher = self.application
 
@@ -52,7 +49,7 @@ class DiningBot:
         self.error_handler = ErrorHandler(admin_ids, sentry_dsn, environment)
         self.forget_code_handler = ForgetCodeMenuHandler(self.db)
         self.reserve_handler = ReserveMenuHandler(self.db, admin_sso_username, admin_sso_password)
-        self.manual_reserve_handler = ManualReserveInlineHandler(self.db)
+        self.manual_reserve_handler = ManualReserveHandler(token, admin_ids, log_level, db, cache)
 
         logging.basicConfig(
             format='%(asctime)s - %(levelname)s - %(message)s',
@@ -260,8 +257,8 @@ class DiningBot:
                         block=False
                     ),
                     MessageHandler(
-                        filters.Regex(RESERVE_REGEX),
-                        self.reserve_handler.reserve_next_week_food
+                        filters.Regex(MANUAL_RESERVE_REGEX),
+                        self.manual_reserve_handler,
                     ),
                     MessageHandler(
                         filters.Regex(SET_USERNAME_AND_PASSWORD_REGEX),
